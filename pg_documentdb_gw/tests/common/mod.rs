@@ -133,6 +133,16 @@ pub fn setup_configuration() -> DocumentDBSetupConfiguration {
     }
 }
 
+pub fn setup_configuration_with_unix_socket_custom(
+    path: Option<String>,
+    permissions: Option<String>,
+) -> DocumentDBSetupConfiguration {
+    let mut config = setup_configuration();
+    config.unix_socket_path = path;
+    config.unix_socket_file_permissions = permissions;
+    config
+}
+
 pub fn get_client() -> Client {
     let credential = Credential::builder()
         .username("test".to_string())
@@ -177,6 +187,35 @@ pub async fn initialize_with_logger() -> Client {
 pub async fn initialize_with_config(config: DocumentDBSetupConfiguration) -> Client {
     initialize_full(config).await;
     get_client()
+}
+
+#[allow(dead_code)]
+pub fn get_unix_socket_client_custom(path: &str) -> Client {
+    use std::time::Duration;
+    let credential = Credential::builder()
+        .username("test".to_string())
+        .password("test".to_string())
+        .mechanism(AuthMechanism::ScramSha256)
+        .build();
+
+    let client_options = ClientOptions::builder()
+        .credential(credential)
+        .hosts(vec![ServerAddress::parse(path).unwrap()])
+        .connect_timeout(Duration::from_millis(100))
+        .server_selection_timeout(Duration::from_millis(100))
+        .build();
+    Client::with_options(client_options).unwrap()
+}
+
+#[allow(dead_code)]
+pub async fn initialize_with_config_and_unix(path: Option<String>) -> (Client, Option<Client>) {
+    let config = setup_configuration_with_unix_socket_custom(path.clone(), None);
+    initialize_full(config).await;
+
+    let tcp_client = get_client();
+    let unix_client = path.map(|socket_path| get_unix_socket_client_custom(&socket_path));
+
+    (tcp_client, unix_client)
 }
 
 #[allow(dead_code)]
